@@ -43,13 +43,17 @@ for key in player_images:
     player_images[key] = pygame.transform.scale(player_images[key], (CELL_SIZE, CELL_SIZE))
 
 # Генерація лабіринту
-def generate_maze():
+def generate_maze(level):
+    wall_chance = min(0.2 + level * 0.02, 0.5)
     while True:
-        maze = [[1 if random.random() < 0.2 else 0 for _ in range(WIDTH // CELL_SIZE)] for _ in range(HEIGHT // CELL_SIZE)]
-        player_x, player_y = 0, 0
-        exit_x, exit_y = generate_exit(maze)
+        maze = [[1 if random.random() < wall_chance else 0 for _ in range(WIDTH // CELL_SIZE)] for _ in range(HEIGHT // CELL_SIZE)]
         
-        if bfs(maze, (player_x, player_y), (exit_x, exit_y)):
+        # Гарантуємо, що початкова позиція гравця прохідна
+        maze[0][0] = 0
+
+        exit_x, exit_y = generate_exit(maze)
+
+        if bfs(maze, (0, 0), (exit_x, exit_y)):
             return maze, (exit_x, exit_y)
 
 # BFS для перевірки шляху
@@ -72,23 +76,56 @@ def bfs(maze, start, goal):
 
 # Генерація виходу
 def generate_exit(maze):
+    height, width = len(maze), len(maze[0])
+    candidates = []
+
+    # Додаємо всі можливі місця біля правого та нижнього краю
+    for x in range(width):
+        if maze[height - 1][x] == 0:
+            candidates.append((x, height - 1))
+    for y in range(height):
+        if maze[y][width - 1] == 0:
+            candidates.append((width - 1, y))
+
+    return random.choice(candidates) if candidates else (width - 1, height - 1)
+
+# Вибір режиму
+def select_mode():
+    font = pygame.font.SysFont(None, 55)
+    SCREEN.fill(BLACK)
+    text1 = font.render("1 - Звичайний режим", True, WHITE)
+    text2 = font.render("2 - Челендж-режим (5 хв)", True, WHITE)
+    SCREEN.blit(text1, (WIDTH // 2 - text1.get_width() // 2, HEIGHT // 2 - 50))
+    SCREEN.blit(text2, (WIDTH // 2 - text2.get_width() // 2, HEIGHT // 2 + 20))
+    pygame.display.flip()
+    
     while True:
-        exit_x, exit_y = random.randint(0, len(maze[0]) - 1), random.randint(0, len(maze) - 1)
-        if maze[exit_y][exit_x] == 0:
-            return exit_x, exit_y
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return None
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_1:
+                    return "normal"
+                if event.key == pygame.K_2:
+                    return "challenge"
 
 # Основна гра
 def game():
+    mode = select_mode()
+    if mode is None:
+        return
+    
     level = 1
     player_x, player_y = 0, 0
     player_direction = "down"
     clock = pygame.time.Clock()
+    total_time = 300 # 5 хвилин
     start_time = time.time()
-    total_time = 300
     running = True
     
     while running:
-        if level > 10:
+        if mode == "normal" and level > 10:
             font = pygame.font.SysFont(None, 55)
             text = font.render("You Win!", True, YELLOW)
             SCREEN.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
@@ -97,7 +134,7 @@ def game():
             running = False
             break
         
-        maze, (exit_x, exit_y) = generate_maze()
+        maze, (exit_x, exit_y) = generate_maze(level)
         
         while running:
             SCREEN.fill(GREEN)
@@ -122,8 +159,18 @@ def game():
             elapsed_time = time.time() - start_time
             remaining_time = total_time - elapsed_time
             if remaining_time <= 0:
+                if mode == "challenge":
+                    font = pygame.font.SysFont(None, 55)
+                    text = font.render("Time's Up!", True, YELLOW)
+                    text2 = font.render(f"Level: {level}", True, YELLOW)
+                    SCREEN.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+                    SCREEN.blit(text2, (WIDTH // 2 - text2.get_width() // 2, HEIGHT // 2 + 50))
+                    pygame.display.flip()
+                    pygame.time.wait(2000)
+                    running = False
+                    break                
                 font = pygame.font.SysFont(None, 55)
-                text = font.render("YOU LOST", True, YELLOW)
+                text = font.render("Time's Up!", True, YELLOW)
                 SCREEN.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
                 pygame.display.flip()
                 pygame.time.wait(2000)
